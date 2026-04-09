@@ -37,6 +37,8 @@ public:
         glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int width, int height) {
             glViewport(0, 0, width, height);
         });
+
+        glfwSwapInterval(0);
     }
     
     ~Window() {
