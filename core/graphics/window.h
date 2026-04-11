@@ -1,4 +1,3 @@
-// Window.h
 #pragma once
 
 #include <glad/glad.h>
@@ -34,10 +33,6 @@ public:
             return;
         }
 
-        glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int width, int height) {
-            glViewport(0, 0, width, height);
-        });
-
         glfwSwapInterval(0);
     }
     
@@ -48,8 +43,7 @@ public:
         glfwTerminate();
     }
     
-    Window(const Window&) = delete;
-    Window& operator=(const Window&) = delete;
+    Window(const Window&) {}
     
     Window(Window&& other) noexcept 
         : _width(other._width), _height(other._height), 
@@ -102,6 +96,10 @@ public:
         _width = width;
         _height = height;
         glfwSetWindowSize(window, width, height);
+    }
+
+    GLFWwindow* GetWindow() {
+        return window;
     }
     
     void setShouldClose(bool flag) {
