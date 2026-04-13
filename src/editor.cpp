@@ -6,7 +6,6 @@
 #include <graphics/shader.h>
 
 // subjects
-#include <subject/camera.h>
 #include <subject/sprite2D.h>
 
 // utils
@@ -14,14 +13,15 @@
 
 int main() {
     Window window(800, 600, u8"BlezeBolt game engine - движок для инди игр");
-    Camera2D camera(window, {0, 0}, {1, 1});
 
-    window.setClearColor(192/255.0f, 192/255.0f, 192/255.0f, 1.0f);
+    // window.setClearColor(192/255.0f, 192/255.0f, 192/255.0f, 1.0f);
+    window.setClearColor(0, 0, 0, 0);
 
     Sprite2D sprite;
     sprite.setPosition(0, 0);
     sprite.setSize(1.0f, 1.0f);
     sprite.setTexture("engine/assets/textures/wall.jpg");
+    sprite.setColor(0.3, 0.14, 0.15);
 
     while (!window.shouldClose()) {
         window.clear();

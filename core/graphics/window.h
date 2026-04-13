@@ -33,6 +33,10 @@ public:
             return;
         }
 
+        glfwSetFramebufferSizeCallback(window, [](GLFWwindow* window, int width, int height) {
+            glViewport(0, 0, width, height);
+        });
+
         glfwSwapInterval(0);
     }
     
@@ -43,22 +47,24 @@ public:
         glfwTerminate();
     }
     
-    Window(const Window&) {}
-    
     Window(Window&& other) noexcept 
         : _width(other._width), _height(other._height), 
           _title(other._title), window(other.window) {
         other.window = nullptr;
+        other._title = nullptr;
     }
     
     Window& operator=(Window&& other) noexcept {
         if (this != &other) {
-            if (window) glfwDestroyWindow(window);
+            if (window) {
+                glfwDestroyWindow(window);
+            }
             _width = other._width;
             _height = other._height;
             _title = other._title;
             window = other.window;
             other.window = nullptr;
+            other._title = nullptr;
         }
         return *this;
     }
