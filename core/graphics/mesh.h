@@ -7,6 +7,7 @@ class Mesh2D {
 public:
     struct Vertex {
         float x, y;
+        float u, v;
     };
 
     Mesh2D() : VAO(0), VBO(0), EBO(0), indexCount(0) {}
@@ -36,6 +37,9 @@ public:
         
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
         glEnableVertexAttribArray(0);
+        
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(2 * sizeof(float)));
+        glEnableVertexAttribArray(1);
         
         glBindVertexArray(0);
     }

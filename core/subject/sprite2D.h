@@ -8,15 +8,9 @@
 
 class Sprite2D {
 private:
-    struct TexturedVertex {
-        float x, y;
-        float u, v;
-    };
-    
     Mesh2D* m_mesh;
     Shader* m_shader;
     GLuint m_texture;
-    GLuint m_VBO, m_VAO, m_EBO;
     Vector2 m_position;
     Vector2 m_size;
     Vector2 m_origin;
@@ -25,33 +19,21 @@ private:
     bool m_visible;
     std::string m_texturePath;
     bool m_ownsShader;
-    GLsizei m_indexCount;
     
     static const char* vertexShaderSource;
     static const char* fragmentShaderSource;
     
     void generateTexturedQuad() {
-        float halfWidth = m_size.x * 0.5f;
-        float halfHeight = m_size.y * 0.5f;
+        float left = -m_size.x * m_origin.x;
+        float right = m_size.x * (1.0f - m_origin.x);
+        float bottom = -m_size.y * m_origin.y;
+        float top = m_size.y * (1.0f - m_origin.y);
         
-        float left = -halfWidth;
-        float right = halfWidth;
-        float bottom = -halfHeight;
-        float top = halfHeight;
-        
-        float originX = m_origin.x * m_size.x;
-        float originY = m_origin.y * m_size.y;
-        
-        left += originX;
-        right += originX;
-        bottom += originY;
-        top += originY;
-        
-        std::vector<float> vertices = {
-            left,  top,      0.0f, 1.0f,
-            right, top,      1.0f, 1.0f,
-            right, bottom,   1.0f, 0.0f,
-            left,  bottom,   0.0f, 0.0f
+        std::vector<Mesh2D::Vertex> vertices = {
+            {left,  top,    0.0f, 1.0f},
+            {right, top,    1.0f, 1.0f},
+            {right, bottom, 1.0f, 0.0f},
+            {left,  bottom, 0.0f, 0.0f}
         };
         
         std::vector<GLuint> indices = {
@@ -59,33 +41,11 @@ private:
             2, 3, 0
         };
         
-        m_indexCount = indices.size();
-        
-        if (m_VAO != 0) {
-            glDeleteVertexArrays(1, &m_VAO);
-            glDeleteBuffers(1, &m_VBO);
-            glDeleteBuffers(1, &m_EBO);
+        if (m_mesh) {
+            delete m_mesh;
         }
-        
-        glGenVertexArrays(1, &m_VAO);
-        glGenBuffers(1, &m_VBO);
-        glGenBuffers(1, &m_EBO);
-        
-        glBindVertexArray(m_VAO);
-        
-        glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-        
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
-        
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-        
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-        glEnableVertexAttribArray(1);
-        
-        glBindVertexArray(0);
+        m_mesh = new Mesh2D();
+        m_mesh->setData(vertices, indices);
     }
     
     void updateTransform() {
@@ -96,8 +56,8 @@ private:
         transform = Matrix3x3::translation(m_position.x, m_position.y) * transform;
         
         transform = Matrix3x3::rotation(m_rotation) * transform;
-        
-        transform = Matrix3x3::scale(m_size.x * 0.5f, m_size.y) * transform;
+
+        transform = Matrix3x3::scale(m_size.x*0.5f, m_size.y) * transform;
         
         float transformArray[9];
         transform.toFloatArray(transformArray);
@@ -161,37 +121,30 @@ private:
 public:
     Sprite2D() 
         : m_mesh(nullptr), m_shader(nullptr), m_texture(0), 
-          m_VBO(0), m_VAO(0), m_EBO(0),
           m_position(0, 0), m_size(1, 1), m_origin(0.5f, 0.5f),
           m_rotation(0), m_color(1, 1, 1, 1), m_visible(true), 
-          m_ownsShader(false), m_indexCount(0) {
+          m_ownsShader(false) {
         initDefaultShader();
         generateTexturedQuad();
     }
     
     Sprite2D(Shader* shader) 
         : m_mesh(nullptr), m_shader(shader), m_texture(0),
-          m_VBO(0), m_VAO(0), m_EBO(0),
           m_position(0, 0), m_size(1, 1), m_origin(0.5f, 0.5f),
           m_rotation(0), m_color(1, 1, 1, 1), m_visible(true), 
-          m_ownsShader(false), m_indexCount(0) {
+          m_ownsShader(false) {
         generateTexturedQuad();
     }
     
     ~Sprite2D() {
-        if (m_VAO != 0) {
-            glDeleteVertexArrays(1, &m_VAO);
-            glDeleteBuffers(1, &m_VBO);
-            glDeleteBuffers(1, &m_EBO);
+        if (m_mesh) {
+            delete m_mesh;
         }
         if (m_texture != 0) {
             glDeleteTextures(1, &m_texture);
         }
         if (m_ownsShader && m_shader) {
             delete m_shader;
-        }
-        if (m_mesh) {
-            delete m_mesh;
         }
     }
     
@@ -282,7 +235,7 @@ public:
     }
     
     void draw() const {
-        if (!m_visible || m_indexCount == 0 || !m_shader) return;
+        if (!m_visible || !m_mesh || !m_shader) return;
         
         m_shader->use();
         
@@ -302,9 +255,7 @@ public:
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         
-        glBindVertexArray(m_VAO);
-        glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        m_mesh->draw();
         
         glDisable(GL_BLEND);
         
