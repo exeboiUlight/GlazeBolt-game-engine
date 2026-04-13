@@ -20,8 +20,8 @@ int main() {
 
     Sprite2D sprite;
     sprite.setPosition(0, 0);
-    sprite.setSize(0.5f, 0.5f);
-    sprite.setTexture("engine/assets/textures/bongo.png");
+    sprite.setSize(1.0f, 1.0f);
+    sprite.setTexture("engine/assets/textures/wall.jpg");
 
     while (!window.shouldClose()) {
         window.clear();
