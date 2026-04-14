@@ -1,4 +1,3 @@
-// text.h - обновленная версия
 #pragma once
 
 #include <graphics/mesh.h>
@@ -9,7 +8,8 @@
 
 #include <map>
 #include <string>
-#include <memory>
+#include <vector>
+#include <iostream>
 
 struct Character {
     GLuint TextureID;
@@ -22,16 +22,26 @@ class Text {
 private:
     std::map<char, Character> m_characters;
     Shader* m_shader;
-    Mesh2D* m_mesh;
+    std::vector<Mesh2D*> m_glyphMeshes;
     Vector2 m_position;
     float m_scale;
     Vector4 m_color;
     std::string m_text;
     bool m_visible;
     bool m_ownsShader;
+    int m_screenWidth;
+    int m_screenHeight;
     
     static const char* vertexShaderSource;
     static const char* fragmentShaderSource;
+    
+    float toNDCX(float pixelX) const {
+        return (pixelX / m_screenWidth) * 2.0f - 1.0f;
+    }
+    
+    float toNDCY(float pixelY) const {
+        return 1.0f - (pixelY / m_screenHeight) * 2.0f;
+    }
     
     void initFreeType(const std::string& fontPath, unsigned int fontSize) {
         FT_Library ft;
@@ -88,48 +98,54 @@ private:
         
         FT_Done_Face(face);
         FT_Done_FreeType(ft);
-        
-        generateQuadMesh();
     }
     
-    void generateQuadMesh() {
-        std::vector<Mesh2D::Vertex> vertices(6 * m_text.length());
-        std::vector<GLuint> indices;
-        
+    void regenerateMeshes() {
+        for (auto mesh : m_glyphMeshes) {
+            delete mesh;
+        }
+        m_glyphMeshes.clear();
+
+        if (m_screenWidth == 0 || m_screenHeight == 0) return;
+
         float x = m_position.x;
         float y = m_position.y;
-        
+
         for (size_t i = 0; i < m_text.length(); i++) {
             char c = m_text[i];
             if (m_characters.find(c) == m_characters.end()) continue;
-            
+
             Character ch = m_characters[c];
-            
+
             float xpos = x + ch.Bearing.x * m_scale;
-            float ypos = y - (ch.Size.y - ch.Bearing.y) * m_scale;
+
+            float ypos = y - ch.Bearing.y * m_scale;
+
             float w = ch.Size.x * m_scale;
             float h = ch.Size.y * m_scale;
-            
-            size_t idx = i * 6;
-            vertices[idx] = {xpos, ypos + h, 0.0f, 0.0f};
-            vertices[idx + 1] = {xpos + w, ypos + h, 1.0f, 0.0f};
-            vertices[idx + 2] = {xpos + w, ypos, 1.0f, 1.0f};
-            vertices[idx + 3] = {xpos, ypos, 0.0f, 1.0f};
-            vertices[idx + 4] = {xpos, ypos + h, 0.0f, 0.0f};
-            vertices[idx + 5] = {xpos + w, ypos, 1.0f, 1.0f};
-            
-            for (int j = 0; j < 6; j++) {
-                indices.push_back(idx + j);
-            }
-            
+
+            float xpos_ndc = toNDCX(xpos);
+            float ypos_ndc = toNDCY(ypos);
+            float xpos_w_ndc = toNDCX(xpos + w);
+            float ypos_h_ndc = toNDCY(ypos + h);
+
+            std::vector<Mesh2D::Vertex> vertices = {
+                {xpos_ndc,     ypos_ndc,     0.0f, 0.0f},
+                {xpos_w_ndc,   ypos_ndc,     1.0f, 0.0f},
+                {xpos_w_ndc,   ypos_h_ndc,   1.0f, 1.0f},
+                {xpos_ndc,     ypos_h_ndc,   0.0f, 1.0f}
+            };
+
+            std::vector<GLuint> indices = {0, 1, 2, 2, 3, 0};
+
+            Mesh2D* mesh = new Mesh2D();
+            mesh->setData(vertices, indices);
+            m_glyphMeshes.push_back(mesh);
+
             x += (ch.Advance >> 6) * m_scale;
         }
-        
-        if (m_mesh) delete m_mesh;
-        m_mesh = new Mesh2D();
-        m_mesh->setData(vertices, indices);
     }
-    
+
     void initDefaultShader() {
         m_shader = new Shader(vertexShaderSource, fragmentShaderSource);
         m_ownsShader = true;
@@ -137,29 +153,39 @@ private:
     
 public:
     Text(const std::string& fontPath, unsigned int fontSize = 48)
-        : m_shader(nullptr), m_mesh(nullptr), m_position(0, 0), 
-          m_scale(1.0f), m_color(1, 1, 1, 1), m_visible(true), m_ownsShader(false) {
+        : m_shader(nullptr), m_position(0, 0), 
+          m_scale(1.0f), m_color(1, 1, 1, 1), m_visible(true), 
+          m_ownsShader(false), m_screenWidth(1200), m_screenHeight(600) {
         initDefaultShader();
         initFreeType(fontPath, fontSize);
     }
     
     Text(Shader* shader, const std::string& fontPath, unsigned int fontSize = 48)
-        : m_shader(shader), m_mesh(nullptr), m_position(0, 0),
-          m_scale(1.0f), m_color(1, 1, 1, 1), m_visible(true), m_ownsShader(false) {
+        : m_shader(shader), m_position(0, 0),
+          m_scale(1.0f), m_color(1, 1, 1, 1), m_visible(true), 
+          m_ownsShader(false), m_screenWidth(1200), m_screenHeight(600) {
         initFreeType(fontPath, fontSize);
     }
     
     ~Text() {
-        if (m_mesh) delete m_mesh;
+        for (auto mesh : m_glyphMeshes) {
+            delete mesh;
+        }
         for (auto& pair : m_characters) {
             glDeleteTextures(1, &pair.second.TextureID);
         }
         if (m_ownsShader && m_shader) delete m_shader;
     }
     
+    void setScreenSize(int width, int height) {
+        m_screenWidth = width;
+        m_screenHeight = height;
+        regenerateMeshes();
+    }
+    
     void setText(const std::string& text) {
         m_text = text;
-        generateQuadMesh();
+        regenerateMeshes();
     }
     
     std::string getText() const { return m_text; }
@@ -167,19 +193,19 @@ public:
     void setPosition(float x, float y) {
         m_position.x = x;
         m_position.y = y;
-        generateQuadMesh();
+        regenerateMeshes();
     }
     
     void setPosition(const Vector2& position) {
         m_position = position;
-        generateQuadMesh();
+        regenerateMeshes();
     }
     
     Vector2 getPosition() const { return m_position; }
     
     void setScale(float scale) {
         m_scale = scale;
-        generateQuadMesh();
+        regenerateMeshes();
     }
     
     float getScale() const { return m_scale; }
@@ -198,25 +224,24 @@ public:
     bool isVisible() const { return m_visible; }
     
     void draw() const {
-        if (!m_visible || !m_mesh || !m_shader) return;
+        if (!m_visible || !m_shader || m_glyphMeshes.empty()) return;
         
         m_shader->use();
-        
-        glActiveTexture(GL_TEXTURE0);
-        m_shader->setInt("uTextTexture", 0);
         m_shader->setVec4("uColor", m_color.x, m_color.y, m_color.z, m_color.w);
         
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         
-        for (size_t i = 0; i < m_text.length(); i++) {
+        for (size_t i = 0; i < m_text.length() && i < m_glyphMeshes.size(); i++) {
             char c = m_text[i];
             if (m_characters.find(c) != m_characters.end()) {
+                glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, m_characters.at(c).TextureID);
+                m_shader->setInt("uTextTexture", 0);
+                
+                m_glyphMeshes[i]->draw();
             }
         }
-        
-        m_mesh->draw();
         
         glDisable(GL_BLEND);
         glBindTexture(GL_TEXTURE_2D, 0);
@@ -230,11 +255,8 @@ layout (location = 1) in vec2 aTexCoord;
 
 out vec2 TexCoord;
 
-uniform mat3 uTransform;
-
 void main() {
-    vec3 transformed = uTransform * vec3(aPos, 1.0);
-    gl_Position = vec4(transformed.xy, 0.0, 1.0);
+    gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
     TexCoord = aTexCoord;
 }
 )";

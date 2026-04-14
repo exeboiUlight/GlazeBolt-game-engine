@@ -33,9 +33,15 @@ public:
             return;
         }
 
-        glfwSetFramebufferSizeCallback(window, [](GLFWwindow* window, int width, int height) {
+        glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int width, int height) {
             glViewport(0, 0, width, height);
+            Window* self = static_cast<Window*>(glfwGetWindowUserPointer(win));
+            if (self) {
+                self->_width = width;
+                self->_height = height;
+            }
         });
+        glfwSetWindowUserPointer(window, this);
 
         glfwSwapInterval(0);
     }
